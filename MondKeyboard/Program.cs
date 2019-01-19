@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Mond;
-using Mond.Binding;
 using Mond.Libraries;
 
 namespace MondKeyboard
@@ -25,12 +24,17 @@ namespace MondKeyboard
 
         private static void MondRepl()
         {
-            var libraryMgr = new MondLibraryManager
+            var state = new MondState()
             {
-                new StandardLibraries()
+                Options =
+                {
+                    DebugInfo = MondDebugInfoLevel.Full,
+                    MakeRootDeclarationsGlobal = true,
+                    UseImplicitGlobals = true
+                }
             };
 
-            libraryMgr.Configure(libs =>
+            state.Libraries.Configure(libs =>
             {
                 var consoleOutput = libs.Get<ConsoleOutputLibrary>();
                 consoleOutput.Out = new SendKeysTextWriter();
@@ -39,8 +43,11 @@ namespace MondKeyboard
                 consoleInput.In = new KeyboardInputTextReader();
             });
 
-            var state = new MondState();
-            libraryMgr.Load(state);
+            state["quit"] = new MondFunction((_, args) =>
+            {
+                Environment.Exit(1);
+                return MondValue.Undefined;
+            });
 
             state["keys"] = new MondFunction((_, args) =>
             {
@@ -48,25 +55,21 @@ namespace MondKeyboard
                 return MondValue.Undefined;
             });
 
-            state["RantEngine"] = MondClassBinder.Bind<MondRantEngine>();
-
             if (File.Exists("init.mnd"))
             {
-                state.Load(MondProgram.Compile(libraryMgr.Definitions + File.ReadAllText("init.mnd")));
+                const string initFile = "init.mnd";
+
+                var initCode = File.ReadAllText(initFile);
+                state.Run(initCode, initFile);
             }
 
-            var options = new MondCompilerOptions
-            {
-                GenerateDebugInfo = true,
-                MakeRootDeclarationsGlobal = true,
-                UseImplicitGlobals = true
-            };
-
+            state.EnsureLibrariesLoaded();
+            
             while (true)
             {
                 try
                 {
-                    var program = MondProgram.CompileStatements(Keyboard.TriggerInput("!m "), "stdin", options).First();
+                    var program = MondProgram.CompileStatements(Keyboard.TriggerInput("!m "), "stdin", state.Options).First();
 
                     while (Keyboard.InputCount > 0)
                     {
@@ -82,8 +85,11 @@ namespace MondKeyboard
                         SendKeys(Escape(result.Serialize()), true);
                     }
                 }
-                catch
+                catch (Exception e)
                 {
+                    if (e is MondException)
+                        SendKeys(Escape("ERROR: " + e.Message), true);
+
                     Keyboard.Reset();
                 }
             }

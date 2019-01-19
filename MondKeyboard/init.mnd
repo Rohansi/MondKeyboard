@@ -1,0 +1,5 @@
+fun times(count, action) {
+    for (var i = 0; i < count; i++) {
+        action(i);
+    }
+}
