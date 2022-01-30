@@ -55,10 +55,9 @@ namespace MondKeyboard
                 return MondValue.Undefined;
             });
 
-            if (File.Exists("init.mnd"))
+            const string initFile = "init.mnd";
+            if (File.Exists(initFile))
             {
-                const string initFile = "init.mnd";
-
                 var initCode = File.ReadAllText(initFile);
                 state.Run(initCode, initFile);
             }
